@@ -1,0 +1,21 @@
+[package]
+name = "internal-service-example"
+version = "0.1.0"
+description = "An example application to demonstrate C2S with citadel-internal-service acting as the server"
+edition = "2021"
+
+[[bin]]
+name = "server"
+path = "src/bin/server.rs"
+
+[[bin]]
+name = "client"
+path = "src/bin/client.rs"
+
+[dependencies]
+citadel_sdk = { git = "https://github.com/Avarok-Cybersecurity/Citadel-Protocol" }
+citadel_proto = { git = "https://github.com/Avarok-Cybersecurity/Citadel-Protocol" }
+citadel-internal-service = { git = "https://github.com/Avarok-Cybersecurity/citadel-internal-service" }
+tokio = { version = "1.28.1", default-features = false }
+futures = { version = "0.3.28", default-features = false }
+uuid = { version="1.3.3", features = ["v4"] }
