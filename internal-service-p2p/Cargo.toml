@@ -1,7 +1,7 @@
 [package]
-name = "internal-service-example"
+name = "internal-service-p2p"
 version = "0.1.0"
-description = "An example application to demonstrate C2S with citadel-internal-service acting as the server"
+description = "An example application to demonstrate P2P with citadel-internal-service acting as the server"
 edition = "2021"
 
 [[bin]]
@@ -9,8 +9,12 @@ name = "server"
 path = "src/bin/server.rs"
 
 [[bin]]
-name = "client"
-path = "src/bin/client.rs"
+name = "peer-one"
+path = "src/bin/peerOne.rs"
+
+[[bin]]
+name = "peer-two"
+path = "src/bin/peerTwo.rs"
 
 [dependencies]
 citadel_sdk = { git = "https://github.com/Avarok-Cybersecurity/Citadel-Protocol" }
