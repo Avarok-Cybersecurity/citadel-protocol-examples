@@ -7,7 +7,6 @@ use citadel_sdk::prelude::NodeBuilder;
 use citadel_sdk::prelude::*;
 use futures::{SinkExt, StreamExt};
 use std::net::SocketAddr;
-use tokio::net::TcpStream;
 use uuid::Uuid;
 
 #[tokio::main]
@@ -24,39 +23,22 @@ async fn main() {
     tokio::task::spawn(internal_service);
 
     // Connect to Internal Service via TCP
-    let bind_address_internal_service: SocketAddr = "127.0.0.1:23457".parse().unwrap();
-    let tcp_conn = TcpStream::connect(bind_address_internal_service)
+    let mut service_connector = InternalServiceConnector::connect("127.0.0.1:23457")
         .await
         .unwrap();
-    let (mut sink, mut stream) = wrap_tcp_conn(tcp_conn).split();
-
-    // Receive Greeter Packet
-    let first_packet = stream.next().await.unwrap().unwrap();
-    let greeter_packet: InternalServiceResponse = bincode2::deserialize(&first_packet).unwrap();
-    if let InternalServiceResponse::ServiceConnectionAccepted(ServiceConnectionAccepted) =
-        greeter_packet
-    {
-        println!("Client Successfully Connected To Internal Service");
-    } else {
-        panic!("Error occurred while trying to connect to Internal Service");
-    }
 
     // Register To and Connect To Server
-    let session_security_settings = SessionSecuritySettingsBuilder::default().build().unwrap();
     let register_request = InternalServiceRequest::Register {
         request_id: Uuid::new_v4(),
         server_addr: "127.0.0.1:23458".parse().unwrap(),
         full_name: "Client One".parse().unwrap(),
         username: "ClientOne".parse().unwrap(),
         proposed_password: "secret".into(),
-        session_security_settings,
+        session_security_settings: SessionSecuritySettingsBuilder::default().build().unwrap(),
         connect_after_register: true,
     };
-    let outbound_request = bincode2::serialize(&register_request).unwrap();
-    sink.send(outbound_request.into()).await.unwrap();
-    let serialized_response = stream.next().await.unwrap().unwrap();
-    let register_response: InternalServiceResponse =
-        bincode2::deserialize(&serialized_response).unwrap();
+    service_connector.sink.send(register_request).await.unwrap();
+    let register_response = service_connector.stream.next().await.unwrap();
     match register_response {
         InternalServiceResponse::ConnectSuccess(
             citadel_internal_service_types::ConnectSuccess {
@@ -73,7 +55,7 @@ async fn main() {
                 request_id: _,
             },
         ) => {
-            println!("Client Failed to Register/Connect to Server: {message:?}")
+            println!("Client Connection Failed: {message:?}")
         }
 
         InternalServiceResponse::RegisterFailure(
@@ -82,7 +64,7 @@ async fn main() {
                 request_id: _,
             },
         ) => {
-            println!("Client Failed to Register/Connect to Server: {message:?}")
+            println!("Client Register Failed: {message:?}")
         }
 
         _ => {
