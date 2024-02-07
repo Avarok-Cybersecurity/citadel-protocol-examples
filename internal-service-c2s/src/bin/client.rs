@@ -48,25 +48,48 @@ async fn main() {
         ) => {
             println!("Client Successfully Connected to Server")
         }
-
-        InternalServiceResponse::ConnectionFailure(
-            citadel_internal_service_types::ConnectionFailure {
+        InternalServiceResponse::ConnectFailure(
+            citadel_internal_service_types::ConnectFailure {
                 message,
                 request_id: _,
             },
         ) => {
             println!("Client Connection Failed: {message:?}")
         }
-
         InternalServiceResponse::RegisterFailure(
             citadel_internal_service_types::RegisterFailure {
                 message,
                 request_id: _,
             },
         ) => {
-            println!("Client Register Failed: {message:?}")
+            if message.contains("already exists") {
+                println!("Client Already Registered - Connecting");
+                let connect_request = InternalServiceRequest::Connect {
+                    request_id: Uuid::new_v4(),
+                    username: "ClientOne".parse().unwrap(),
+                    password: "secret".into(),
+                    connect_mode: Default::default(),
+                    udp_mode: Default::default(),
+                    keep_alive_timeout: None,
+                    session_security_settings: Default::default(),
+                };
+                service_connector.sink.send(connect_request).await.unwrap();
+                let connect_response = service_connector.stream.next().await.unwrap();
+                match connect_response {
+                    InternalServiceResponse::ConnectSuccess(..) => {
+                        println!("Client Successfully Connected to Server")
+                    }
+                    InternalServiceResponse::ConnectFailure(..) => {
+                        println!("Client Failed to Connect to Server")
+                    }
+                    _ => {
+                        panic!("Unhandled Response While Trying to Connect to Server: {connect_response:?}")
+                    }
+                }
+            } else {
+                println!("Client Register Failed")
+            }
         }
-
         _ => {
             panic!("Unhandled Response While Trying to Register/Connect to Server: {register_response:?}")
         }
