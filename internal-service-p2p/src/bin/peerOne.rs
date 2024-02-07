@@ -47,8 +47,43 @@ async fn main() {
             println!("Client Successfully Connected to Server");
             cid
         }
-
-        // Will panic if Client is already registered
+        InternalServiceResponse::RegisterFailure(
+            citadel_internal_service_types::RegisterFailure {
+                message,
+                request_id: _,
+            },
+        ) => {
+            if message.contains("already exists") {
+                println!("Client Already Registered - Connecting");
+                let connect_request = InternalServiceRequest::Connect {
+                    request_id: Uuid::new_v4(),
+                    username: "ClientOne".parse().unwrap(),
+                    password: "secret".into(),
+                    connect_mode: Default::default(),
+                    udp_mode: Default::default(),
+                    keep_alive_timeout: None,
+                    session_security_settings: Default::default(),
+                };
+                service_connector.sink.send(connect_request).await.unwrap();
+                let connect_response = service_connector.stream.next().await.unwrap();
+                match connect_response {
+                    InternalServiceResponse::ConnectSuccess(
+                        citadel_internal_service_types::ConnectSuccess { cid, request_id: _ },
+                    ) => {
+                        println!("Client Successfully Connected to Server");
+                        cid
+                    }
+                    InternalServiceResponse::ConnectFailure(..) => {
+                        panic!("Client Failed to Connect to Server")
+                    }
+                    _ => {
+                        panic!("Unhandled Response While Trying to Connect to Server: {connect_response:?}")
+                    }
+                }
+            } else {
+                panic!("Client Register Failed")
+            }
+        }
         _ => {
             panic!("Unhandled Response While Trying to Register/Connect to Server: {register_response:?}")
         }
@@ -69,7 +104,7 @@ async fn main() {
         .unwrap();
     let get_peers_response = service_connector.stream.next().await.unwrap();
     let peer_cid = match get_peers_response {
-        InternalServiceResponse::ListAllPeers(ListAllPeers {
+        InternalServiceResponse::ListAllPeersResponse(ListAllPeersResponse {
             cid: _,
             online_status,
             request_id: _,
@@ -148,7 +183,7 @@ async fn main() {
         .unwrap();
     let peer_message_response = service_connector.stream.next().await.unwrap();
     match peer_message_response {
-        InternalServiceResponse::MessageSent(MessageSent {
+        InternalServiceResponse::MessageSendSuccess(MessageSendSuccess {
             cid: _,
             peer_cid: _,
             request_id: _,

@@ -19,9 +19,9 @@ path = "src/bin/peerTwo.rs"
 [dependencies]
 citadel_sdk = { git = "https://github.com/Avarok-Cybersecurity/Citadel-Protocol" }
 citadel_proto = { git = "https://github.com/Avarok-Cybersecurity/Citadel-Protocol" }
-citadel-internal-service = { git = "https://github.com/Avarok-Cybersecurity/citadel-internal-service", branch="tjemmmic/forward-peer-requests" }
-citadel-internal-service-connector= { git="https://github.com/Avarok-Cybersecurity/citadel-internal-service", branch="tjemmmic/forward-peer-requests" , package="citadel-internal-service-connector" }
-citadel-internal-service-types= { git="https://github.com/Avarok-Cybersecurity/citadel-internal-service", branch="tjemmmic/forward-peer-requests" , package="citadel-internal-service-types" }
+citadel-internal-service = { git = "https://github.com/Avarok-Cybersecurity/citadel-internal-service", branch = "tjemmmic/forward-peer-requests" }
+citadel-internal-service-connector= { git="https://github.com/Avarok-Cybersecurity/citadel-internal-service", branch = "tjemmmic/forward-peer-requests", package="citadel-internal-service-connector" }
+citadel-internal-service-types= { git="https://github.com/Avarok-Cybersecurity/citadel-internal-service", branch = "tjemmmic/forward-peer-requests", package="citadel-internal-service-types" }
 bincode2 = { version = "2.0.1", default-features = false }
 tokio = { version = "1.28.1", default-features = false }
 futures = { version = "0.3.28", default-features = false }
