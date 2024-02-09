@@ -13,7 +13,7 @@ use uuid::Uuid;
 #[tokio::main]
 async fn main() {
     // Internal Service for Client
-    let bind_address_internal_service: SocketAddr = "127.0.0.1:23457".parse().unwrap();
+    let bind_address_internal_service: SocketAddr = "127.0.0.1:23456".parse().unwrap();
     let internal_service_kernel = CitadelWorkspaceService::new(bind_address_internal_service);
     let internal_service = NodeBuilder::default()
         .with_node_type(NodeType::Peer)
@@ -24,7 +24,7 @@ async fn main() {
     tokio::task::spawn(internal_service);
 
     // Connect to Internal Service via TCP
-    let mut service_connector = InternalServiceConnector::connect("127.0.0.1:23457")
+    let mut service_connector = InternalServiceConnector::connect("127.0.0.1:23456")
         .await
         .unwrap();
 
@@ -59,7 +59,7 @@ async fn main() {
                     request_id: Uuid::new_v4(),
                     username: "ClientTwo".parse().unwrap(),
                     password: "secret".into(),
-                    connect_mode: Default::default(),
+                    connect_mode: ConnectMode::Fetch { force_login: true },
                     udp_mode: Default::default(),
                     keep_alive_timeout: None,
                     session_security_settings: Default::default(),
@@ -73,8 +73,11 @@ async fn main() {
                         println!("Client Successfully Connected to Server");
                         cid
                     }
-                    InternalServiceResponse::ConnectFailure(..) => {
-                        panic!("Client Failed to Connect to Server")
+                    InternalServiceResponse::ConnectFailure(ConnectFailure {
+                        message,
+                        request_id: _,
+                    }) => {
+                        panic!("Client Failed to Connect to Server: {message:?}")
                     }
                     _ => {
                         panic!("Unhandled Response While Trying to Connect to Server: {connect_response:?}")
@@ -89,24 +92,32 @@ async fn main() {
         }
     };
 
-    // Receive Register Request from Peer One
-    let inbound_register_request = service_connector.stream.next().await.unwrap();
-    let peer_cid = match inbound_register_request {
-        InternalServiceResponse::PeerRegisterNotification(PeerRegisterNotification {
+    // Give time to ensure Peer One is connected
+    tokio::time::sleep(Duration::from_millis(5000)).await;
+
+    // Get Peer CID from list of all Peers on Server
+    let get_peers_request = InternalServiceRequest::ListAllPeers {
+        request_id: Uuid::new_v4(),
+        cid,
+    };
+    service_connector
+        .sink
+        .send(get_peers_request)
+        .await
+        .unwrap();
+    let get_peers_response = service_connector.stream.next().await.unwrap();
+    let peer_cid = match get_peers_response {
+        InternalServiceResponse::ListAllPeersResponse(ListAllPeersResponse {
             cid: _,
-            peer_cid,
-            peer_username,
+            online_status,
             request_id: _,
-        }) => {
-            println!("Received Register Request from {peer_username:?}");
-            peer_cid
-        }
+        }) => *online_status.keys().next().unwrap(),
         _ => {
-            panic!("Unexpected Response {inbound_register_request:?}")
+            panic!("Peer List Retrieval Failure")
         }
     };
 
-    // Accept Register Request from Peer One
+    // Request to register with Peer One
     let peer_register_request = InternalServiceRequest::PeerRegister {
         request_id: Uuid::new_v4(),
         cid,
@@ -127,7 +138,7 @@ async fn main() {
             peer_username,
             request_id: _,
         }) => {
-            println!("Accepted Registration Request from {peer_username:?}");
+            println!("Requested to Register with {peer_username:?}");
             peer_username
         }
         _ => {
@@ -135,24 +146,7 @@ async fn main() {
         }
     };
 
-    // Receive Request to Connect
-    let inbound_connection_request = service_connector.stream.next().await.unwrap();
-    match inbound_connection_request {
-        InternalServiceResponse::PeerConnectNotification(PeerConnectNotification {
-            cid: _,
-            peer_cid: _,
-            session_security_settings: _,
-            udp_mode: _,
-            request_id: _,
-        }) => {
-            println!("Received Connection Request from {peer_username:?}")
-        }
-        _ => {
-            panic!("Unexpected Response {inbound_connection_request:?}")
-        }
-    }
-
-    // Accept Register Request from Peer One
+    // Request to Connect to Peer One
     let peer_connect_request = InternalServiceRequest::PeerConnect {
         request_id: Uuid::new_v4(),
         cid,
@@ -171,28 +165,38 @@ async fn main() {
             cid: _,
             request_id: _,
         }) => {
-            println!("Accepted Connection with {peer_username:?}")
+            println!("Requested to Connect to {peer_username:?}")
         }
         _ => {
-            panic!("Unexpected Response to Peer Connection Attempt {peer_connect_response:?}")
+            panic!("Unexpected Response to Peer Connect Attempt {peer_connect_response:?}")
         }
     }
 
-    // Give some time to ensure connection is established
-    tokio::time::sleep(Duration::from_millis(1000)).await;
-
-    let inbound_message = service_connector.stream.next().await.unwrap();
-    match inbound_message {
-        InternalServiceResponse::MessageNotification(MessageNotification {
-            message,
+    let peer_message_request = InternalServiceRequest::Message {
+        request_id: Uuid::new_v4(),
+        message: "Hello Peer One! This is Peer Two's Message!".into(),
+        cid,
+        peer_cid: Some(peer_cid),
+        security_level: Default::default(),
+    };
+    service_connector
+        .sink
+        .send(peer_message_request)
+        .await
+        .unwrap();
+    let peer_message_response = service_connector.stream.next().await.unwrap();
+    match peer_message_response {
+        InternalServiceResponse::MessageSendSuccess(MessageSendSuccess {
             cid: _,
             peer_cid: _,
             request_id: _,
         }) => {
-            println!("Received Message: {message:?}");
+            println!("Successfully Sent Message!")
         }
         _ => {
-            panic!("Unexpected Response {inbound_message:?}")
+            panic!("Unexpected Response Following Peer Message Attempt {peer_message_response:?}")
         }
     }
+
+    tokio::time::sleep(Duration::from_millis(2000)).await;
 }

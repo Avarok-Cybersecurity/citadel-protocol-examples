@@ -79,8 +79,8 @@ async fn main() {
                     InternalServiceResponse::ConnectSuccess(..) => {
                         println!("Client Successfully Connected to Server")
                     }
-                    InternalServiceResponse::ConnectFailure(..) => {
-                        println!("Client Failed to Connect to Server")
+                    InternalServiceResponse::ConnectFailure(ConnectFailure { message, request_id: _ }) => {
+                        panic!("Client Failed to Connect to Server: {message:?}")
                     }
                     _ => {
                         panic!("Unhandled Response While Trying to Connect to Server: {connect_response:?}")
