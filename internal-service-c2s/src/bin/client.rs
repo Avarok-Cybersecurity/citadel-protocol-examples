@@ -2,7 +2,6 @@ use citadel_internal_service::kernel::*;
 use citadel_internal_service_connector::util::*;
 use citadel_internal_service_types::*;
 use citadel_proto::prelude::NodeType;
-use citadel_proto::prelude::SessionSecuritySettingsBuilder;
 use citadel_sdk::prelude::NodeBuilder;
 use citadel_sdk::prelude::*;
 use futures::{SinkExt, StreamExt};
@@ -16,7 +15,7 @@ async fn main() {
     let internal_service_kernel = CitadelWorkspaceService::new(bind_address_internal_service);
     let internal_service = NodeBuilder::default()
         .with_node_type(NodeType::Peer)
-        .with_backend(BackendType::InMemory)
+        .with_backend(BackendType::Filesystem("filesystem".into()))
         .with_insecure_skip_cert_verification()
         .build(internal_service_kernel)
         .unwrap();
@@ -34,19 +33,20 @@ async fn main() {
         full_name: "Client One".parse().unwrap(),
         username: "ClientOne".parse().unwrap(),
         proposed_password: "secret".into(),
-        session_security_settings: SessionSecuritySettingsBuilder::default().build().unwrap(),
+        session_security_settings: Default::default(),
         connect_after_register: true,
     };
     service_connector.sink.send(register_request).await.unwrap();
     let register_response = service_connector.stream.next().await.unwrap();
-    match register_response {
+    let cid = match register_response {
         InternalServiceResponse::ConnectSuccess(
             citadel_internal_service_types::ConnectSuccess {
-                cid: _,
+                cid,
                 request_id: _,
             },
         ) => {
-            println!("Client Successfully Connected to Server")
+            println!("Client {cid:?} Successfully Connected to Server");
+            cid
         }
         InternalServiceResponse::ConnectFailure(
             citadel_internal_service_types::ConnectFailure {
@@ -54,7 +54,7 @@ async fn main() {
                 request_id: _,
             },
         ) => {
-            println!("Client Connection Failed: {message:?}")
+            panic!("Client Connection Failed: {message:?}")
         }
         InternalServiceResponse::RegisterFailure(
             citadel_internal_service_types::RegisterFailure {
@@ -76,8 +76,14 @@ async fn main() {
                 service_connector.sink.send(connect_request).await.unwrap();
                 let connect_response = service_connector.stream.next().await.unwrap();
                 match connect_response {
-                    InternalServiceResponse::ConnectSuccess(..) => {
-                        println!("Client Successfully Connected to Server")
+                    InternalServiceResponse::ConnectSuccess(
+                        citadel_internal_service_types::ConnectSuccess {
+                            cid,
+                            request_id: _,
+                        }
+                    ) => {
+                        println!("Client Successfully Connected to Server");
+                        cid
                     }
                     InternalServiceResponse::ConnectFailure(ConnectFailure { message, request_id: _ }) => {
                         panic!("Client Failed to Connect to Server: {message:?}")
@@ -87,11 +93,29 @@ async fn main() {
                     }
                 }
             } else {
-                println!("Client Register Failed")
+                panic!("Client Register Failed")
             }
         }
         _ => {
             panic!("Unhandled Response While Trying to Register/Connect to Server: {register_response:?}")
         }
+    };
+    let disconnect_request = InternalServiceRequest::Disconnect {
+        request_id: Default::default(),
+        cid,
+    };
+    service_connector.sink.send(disconnect_request).await.unwrap();
+    let disconnect_response = service_connector.stream.next().await.unwrap();
+    match disconnect_response {
+        InternalServiceResponse::DisconnectNotification( .. ) => {
+            println!("Successfully Disconnected")
+        },
+        InternalServiceResponse::DisconnectFailure( .. ) => {
+            panic!("Failed to Disconnect from Server")
+        },
+        _ => {
+            panic!("Unexpected Response When Disconnecting: {disconnect_response:?}")
+        }
     }
+
 }
