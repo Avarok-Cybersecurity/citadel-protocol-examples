@@ -1,9 +1,12 @@
 use citadel_proto::prelude::NodeType;
 use citadel_sdk::prefabs::server::client_connect_listener::ClientConnectListenerKernel;
 use citadel_sdk::prelude::*;
+use structopt::{lazy_static, StructOpt};
+use citadel_logging::{info, error};
 
 #[tokio::main]
 async fn main() {
+    citadel_logging::setup_log();
     // Server
     let tcp_listener = std::net::TcpListener::bind("127.0.0.1:23458").unwrap();
     let bind_addr = tcp_listener.local_addr().unwrap();

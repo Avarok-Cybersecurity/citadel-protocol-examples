@@ -9,22 +9,25 @@ use futures::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use std::time::Duration;
 use uuid::Uuid;
+use structopt::{lazy_static, StructOpt};
+use citadel_logging::{info, error};
 
 #[tokio::main]
 async fn main() {
+    citadel_logging::setup_log();
     // Internal Service for Client
-    let bind_address_internal_service: SocketAddr = "127.0.0.1:23456".parse().unwrap();
-    let internal_service_kernel = CitadelWorkspaceService::new(bind_address_internal_service);
-    let internal_service = NodeBuilder::default()
-        .with_node_type(NodeType::Peer)
-        .with_backend(BackendType::InMemory)
-        .with_insecure_skip_cert_verification()
-        .build(internal_service_kernel)
-        .unwrap();
-    tokio::task::spawn(internal_service);
+    // let bind_address_internal_service: SocketAddr = "127.0.0.1:23456".parse().unwrap();
+    // let internal_service_kernel = CitadelWorkspaceService::new(bind_address_internal_service);
+    // let internal_service = NodeBuilder::default()
+    //     .with_node_type(NodeType::Peer)
+    //     .with_backend(BackendType::InMemory)
+    //     .with_insecure_skip_cert_verification()
+    //     .build(internal_service_kernel)
+    //     .unwrap();
+    // tokio::task::spawn(internal_service);
 
     // Connect to Internal Service via TCP
-    let mut service_connector = InternalServiceConnector::connect("127.0.0.1:23456")
+    let mut service_connector = InternalServiceConnector::connect("127.0.0.1:23457")
         .await
         .unwrap();
 

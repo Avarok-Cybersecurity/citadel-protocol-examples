@@ -9,9 +9,39 @@ use futures::{SinkExt, StreamExt};
 use std::net::SocketAddr;
 use std::time::Duration;
 use uuid::Uuid;
+use structopt::{lazy_static, StructOpt};
+use citadel_logging::{info, error};
 
 #[tokio::main]
 async fn main() {
+    citadel_logging::setup_log();
+    lazy_static::lazy_static! {
+    static ref DEADLOCK_INIT: () = {
+        let _ = std::thread::spawn(move || {
+            info!(target: "gadget", "Executing deadlock detector ...");
+            use std::thread;
+            use std::time::Duration;
+            use parking_lot::deadlock;
+            loop {
+                std::thread::sleep(Duration::from_secs(5));
+                let deadlocks = deadlock::check_deadlock();
+                if deadlocks.is_empty() {
+                    continue;
+                }
+
+                error!(target: "citadel", "{} deadlocks detected", deadlocks.len());
+                for (i, threads) in deadlocks.iter().enumerate() {
+                    error!(target: "citadel", "Deadlock #{}", i);
+                    for t in threads {
+                        info!(target: "citadel", "Thread Id {:#?}", t.thread_id());
+                        error!(target: "citadel", "{:#?}", t.backtrace());
+                    }
+                }
+            }
+        });
+    };
+}
+
     // Internal Service for Client
     let bind_address_internal_service: SocketAddr = "127.0.0.1:23457".parse().unwrap();
     let internal_service_kernel = CitadelWorkspaceService::new(bind_address_internal_service);
